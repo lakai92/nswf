@@ -1,19 +1,24 @@
-// Обработчик сообщений от основного потока
-onmessage = async function(event) {
-  const images = event.data.images;
-  const predictions = [];
+// worker.js
 
-  // Загружаем модель
-  tf.setBackend("webgl"); // Используем WebGL для ускорения вычислений
-  const model = await nsfwjs.load("MobileNetV2Mid"); // Загружаем модель
+// Import TensorFlow.js and NSFWJS
+importScripts('https://unpkg.com/@tensorflow/tfjs@2.6.0');
+importScripts('https://unpkg.com/nsfwjs@2.3.0');
 
-  // Производим классификацию всех изображений
-  for (let i = 0; i < images.length; i++) {
-    const image = images[i];
-    const prediction = await model.classify(image);
-    predictions.push(prediction);
-  }
+// Initialize NSFWJS
+nsfwjs.load("MobileNetV2Mid", { quantBytes: 2 }).then((model) => {
+  // Listen for messages from the main thread
+  self.onmessage = async function(event) {
+    const { imageData } = event.data;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imageData;
 
-  // Отправляем предсказания обратно в основной поток
-  postMessage(predictions);
-};
+    img.onload = async function () {
+      // Classify the image
+      const predictions = await model.classify(img);
+      
+      // Send the predictions back to the main thread
+      self.postMessage(predictions);
+    };
+  };
+});
